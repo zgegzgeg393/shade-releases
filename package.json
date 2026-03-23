@@ -1,0 +1,11 @@
+{
+  "name": "shade-panel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.2"
+  }
+}
