@@ -1,5 +1,8 @@
 {
   "v1.0": {
     "message": "Version désactivée."
+  },
+  "V1.0": {
+    "message": "This version has been disabled. Contact support."
   }
 }
