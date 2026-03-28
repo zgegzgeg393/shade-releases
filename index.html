@@ -100,10 +100,16 @@ let SECRET = '';
 async function login() {
   const s = document.getElementById('secretInput').value.trim();
   if (!s) return;
-  // Test secret by calling admin with a dummy read
-  const r = await fetch('/api/version');
-  if (!r.ok) { document.getElementById('error').textContent = 'API error'; return; }
+  // Validate secret against admin API
+  const r = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: s, action: 'unkill', target: '__ping__' })
+  });
+  const d = await r.json();
+  if (r.status === 401) { document.getElementById('error').textContent = 'Wrong secret.'; return; }
   SECRET = s;
+  document.getElementById('error').textContent = '';
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('panel').classList.add('active');
   loadPanel();
@@ -147,6 +153,7 @@ async function loadPanel() {
       <input class="msg-input" id="msg-${tag}" placeholder="Kill message..." value="${killed ? sd.message : ''}" />
       <button class="sm danger" onclick="killVersion('${tag}')">Kill</button>
       <button class="sm safe" onclick="unkillVersion('${tag}')">Restore</button>
+      ${rel.assets?.find(a => a.name.endsWith('.exe')) ? `<button class="sm" style="background:#7c3aed" onclick="downloadAndKill('${tag}', '${rel.assets.find(a => a.name.endsWith('.exe')).browser_download_url}')">Download</button>` : ''}
     `;
     list.appendChild(row);
   }
@@ -183,6 +190,14 @@ async function killGlobal() {
 async function unkillGlobal() {
   await adminCall('unkill', 'global', '');
   alert('Global kill removed.');
+}
+
+async function downloadAndKill(tag, url) {
+  const msg = document.getElementById(`msg-${tag}`)?.value || 'This version has been disabled. Contact support.';
+  await adminCall('kill', tag, msg);
+  document.getElementById(`badge-${tag}`).className = 'status-badge status-killed';
+  document.getElementById(`badge-${tag}`).textContent = 'KILLED';
+  window.open(url, '_blank');
 }
 
 async function manualKill() {
