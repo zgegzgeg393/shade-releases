@@ -100,10 +100,16 @@ let SECRET = '';
 async function login() {
   const s = document.getElementById('secretInput').value.trim();
   if (!s) return;
-  // Test secret by calling admin with a dummy read
-  const r = await fetch('/api/version');
-  if (!r.ok) { document.getElementById('error').textContent = 'API error'; return; }
+  // Validate secret against admin API
+  const r = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: s, action: 'unkill', target: '__ping__' })
+  });
+  const d = await r.json();
+  if (r.status === 401) { document.getElementById('error').textContent = 'Wrong secret.'; return; }
   SECRET = s;
+  document.getElementById('error').textContent = '';
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('panel').classList.add('active');
   loadPanel();
