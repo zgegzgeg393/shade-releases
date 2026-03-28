@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shade Admin Panel</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+  .login-screen { display: flex; align-items: center; justify-content: center; height: 100vh; }
+  .login-box { background: #13131a; border: 1px solid #2a2a3a; border-radius: 12px; padding: 40px; width: 360px; }
+  .login-box h1 { color: #a855f7; font-size: 22px; margin-bottom: 8px; }
+  .login-box p { color: #666; font-size: 13px; margin-bottom: 24px; }
+  input { width: 100%; background: #0d0d14; border: 1px solid #2a2a3a; border-radius: 8px; padding: 10px 14px; color: #e0e0e0; font-size: 14px; outline: none; margin-bottom: 12px; }
+  input:focus { border-color: #a855f7; }
+  button { width: 100%; background: #a855f7; border: none; border-radius: 8px; padding: 11px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  button:hover { background: #9333ea; }
+  button.danger { background: #dc2626; }
+  button.danger:hover { background: #b91c1c; }
+  button.safe { background: #16a34a; }
+  button.safe:hover { background: #15803d; }
+  button.sm { width: auto; padding: 6px 14px; font-size: 12px; }
+  .panel { display: none; padding: 32px; max-width: 900px; margin: 0 auto; }
+  .panel.active { display: block; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+  .header h1 { color: #a855f7; font-size: 20px; }
+  .header span { color: #555; font-size: 13px; }
+  .card { background: #13131a; border: 1px solid #2a2a3a; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+  .version-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #1a1a24; }
+  .version-row:last-child { border-bottom: none; }
+  .version-tag { background: #1e1e2e; border: 1px solid #3a3a5a; border-radius: 6px; padding: 4px 10px; font-size: 13px; font-family: monospace; color: #a855f7; min-width: 60px; text-align: center; }
+  .version-name { flex: 1; font-size: 14px; color: #ccc; }
+  .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+  .status-ok { background: #14532d; color: #4ade80; }
+  .status-killed { background: #450a0a; color: #f87171; }
+  .msg-input { flex: 1; background: #0d0d14; border: 1px solid #2a2a3a; border-radius: 6px; padding: 6px 10px; color: #e0e0e0; font-size: 12px; outline: none; }
+  .msg-input:focus { border-color: #a855f7; }
+  .global-section { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .global-section input { flex: 1; margin-bottom: 0; min-width: 200px; }
+  #error { color: #f87171; font-size: 13px; margin-top: 8px; }
+  .logout { background: none; border: 1px solid #2a2a3a; color: #666; width: auto; padding: 6px 14px; font-size: 12px; border-radius: 6px; }
+  .logout:hover { background: #1a1a24; color: #ccc; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h1>Shade Admin</h1>
+    <p>Enter your admin secret to continue</p>
+    <input type="password" id="secretInput" placeholder="Admin secret..." />
+    <div id="error"></div>
+    <button onclick="login()" style="margin-top:8px">Login</button>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div class="panel" id="panel">
+  <div class="header">
+    <h1>Shade Admin Panel</h1>
+    <div style="display:flex;gap:12px;align-items:center">
+      <span id="currentVersionLabel"></span>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- GLOBAL KILL -->
+  <div class="card">
+    <h2>Global Kill Switch</h2>
+    <div class="global-section">
+      <input type="text" id="globalMsg" placeholder="Message to display to all users..." />
+      <button class="sm danger" onclick="killGlobal()">Kill All</button>
+      <button class="sm safe" onclick="unkillGlobal()">Restore All</button>
+    </div>
+  </div>
+
+  <!-- VERSIONS -->
+  <div class="card">
+    <h2>Version Control</h2>
+    <div id="versionList"><p style="color:#555;font-size:13px">Loading...</p></div>
+  </div>
+
+  <!-- MANUAL -->
+  <div class="card">
+    <h2>Manual Kill / Restore</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="manualVersion" placeholder="Version (e.g. v1.0)" style="width:140px;margin-bottom:0" />
+      <input type="text" id="manualMsg" placeholder="Message..." style="flex:1;margin-bottom:0" />
+      <button class="sm danger" onclick="manualKill()">Kill</button>
+      <button class="sm safe" onclick="manualUnkill()">Restore</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let SECRET = '';
+
+async function login() {
+  const s = document.getElementById('secretInput').value.trim();
+  if (!s) return;
+  // Test secret by calling admin with a dummy read
+  const r = await fetch('/api/version');
+  if (!r.ok) { document.getElementById('error').textContent = 'API error'; return; }
+  SECRET = s;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('panel').classList.add('active');
+  loadPanel();
+}
+
+function logout() {
+  SECRET = '';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('panel').classList.remove('active');
+  document.getElementById('secretInput').value = '';
+}
+
+async function loadPanel() {
+  // Load current version
+  const vr = await fetch('/api/version');
+  const vd = await vr.json();
+  document.getElementById('currentVersionLabel').textContent = `Latest: ${vd.version || '?'}`;
+
+  // Load all GitHub releases to list versions
+  const owner = 'zgegzgeg393', repo = 'shade-releases';
+  const gr = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`);
+  const releases = await gr.json();
+
+  const list = document.getElementById('versionList');
+  if (!releases.length) { list.innerHTML = '<p style="color:#555;font-size:13px">No releases found.</p>'; return; }
+
+  list.innerHTML = '';
+  for (const rel of releases) {
+    const tag = rel.tag_name;
+    // Check kill status
+    const sr = await fetch(`/api/status?version=${tag}`);
+    const sd = await sr.json();
+    const killed = !sd.allowed;
+
+    const row = document.createElement('div');
+    row.className = 'version-row';
+    row.innerHTML = `
+      <span class="version-tag">${tag}</span>
+      <span class="version-name">${rel.name}</span>
+      <span class="status-badge ${killed ? 'status-killed' : 'status-ok'}" id="badge-${tag}">${killed ? 'KILLED' : 'OK'}</span>
+      <input class="msg-input" id="msg-${tag}" placeholder="Kill message..." value="${killed ? sd.message : ''}" />
+      <button class="sm danger" onclick="killVersion('${tag}')">Kill</button>
+      <button class="sm safe" onclick="unkillVersion('${tag}')">Restore</button>
+      ${rel.assets?.find(a => a.name.endsWith('.exe')) ? `<button class="sm" style="background:#7c3aed" onclick="downloadAndKill('${tag}', '${rel.assets.find(a => a.name.endsWith('.exe')).browser_download_url}')">Download</button>` : ''}
+    `;
+    list.appendChild(row);
+  }
+}
+
+async function adminCall(action, target, message) {
+  const r = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: SECRET, action, target, message })
+  });
+  return r.json();
+}
+
+async function killVersion(tag) {
+  const msg = document.getElementById(`msg-${tag}`)?.value || '';
+  await adminCall('kill', tag, msg);
+  document.getElementById(`badge-${tag}`).className = 'status-badge status-killed';
+  document.getElementById(`badge-${tag}`).textContent = 'KILLED';
+}
+
+async function unkillVersion(tag) {
+  await adminCall('unkill', tag, '');
+  document.getElementById(`badge-${tag}`).className = 'status-badge status-ok';
+  document.getElementById(`badge-${tag}`).textContent = 'OK';
+}
+
+async function killGlobal() {
+  const msg = document.getElementById('globalMsg').value || 'Service temporarily unavailable.';
+  await adminCall('kill', 'global', msg);
+  alert('Global kill activated.');
+}
+
+async function unkillGlobal() {
+  await adminCall('unkill', 'global', '');
+  alert('Global kill removed.');
+}
+
+async function downloadAndKill(tag, url) {
+  const msg = document.getElementById(`msg-${tag}`)?.value || 'This version has been disabled. Contact support.';
+  await adminCall('kill', tag, msg);
+  document.getElementById(`badge-${tag}`).className = 'status-badge status-killed';
+  document.getElementById(`badge-${tag}`).textContent = 'KILLED';
+  window.open(url, '_blank');
+}
+
+async function manualKill() {
+  const v = document.getElementById('manualVersion').value.trim();
+  const m = document.getElementById('manualMsg').value.trim();
+  if (!v) return;
+  await adminCall('kill', v, m);
+  alert(`${v} killed.`);
+  loadPanel();
+}
+
+async function manualUnkill() {
+  const v = document.getElementById('manualVersion').value.trim();
+  if (!v) return;
+  await adminCall('unkill', v, '');
+  alert(`${v} restored.`);
+  loadPanel();
+}
+
+document.getElementById('secretInput').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+</script>
+</body>
+</html>
